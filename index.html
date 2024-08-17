@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compress Gambar</title>
+  </head>
+  <body>
+    <main>
+      <h1>Compress Gambar</h1>
+      <form method="post" id="form-post">
+        <input
+          type="file"
+          name="image-input"
+          id="image-input"
+          accept="image/*"
+          onchange="compressImg('image-input')"
+        />
+        <img id="tmp" hidden />
+        <img src="noimage.png" alt="..." width="300px" id="preview" />
+        <button type="submit">Submit</button>
+      </form>
+    </main>
+  </body>
+</html>
+<script>
+  var data;
+  function compressImg(params) {
+    var file = document.querySelector("#" + params).files[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+
+    reader.onload = async function (event) {
+      const imgElement = document.createElement("img");
+      imgElement.src = event.target.result;
+      document.querySelector("#tmp").src = event.target.result;
+
+      imgElement.onload = async function (e) {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 1920;
+        const MAX_HEIGHT = 1920;
+        const MAX_SIZE = 200000; // ukuran file maksimal 200 KB bisa kalian atur sendiri sesuai kebutuhan.
+
+        let width = e.target.width;
+        let height = e.target.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(e.target, 0, 0, canvas.width, canvas.height);
+
+        let blob = await new Promise((rs) =>
+          canvas.toBlob(rs, "image/jpeg", 1)
+        );
+
+        //Binary Compress
+        let start = 0,
+          end = 1,
+          last,
+          accepted;
+        while (blob.size > MAX_SIZE) {
+          const mid = (start + end) / 2;
+          if (mid === last) break;
+          last = mid;
+          blob = await new Promise((rs) =>
+            canvas.toBlob(rs, "image/jpeg", mid)
+          );
+          if (blob.size <= MAX_SIZE) (start = mid), (accepted = blob);
+          else end = mid;
+        }
+
+        const srcEncoded = URL.createObjectURL(accepted);
+        document.querySelector("#preview").src = srcEncoded;
+        data = accepted;
+      };
+    };
+  }
+
+  document.getElementById("form-post").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var formData = new FormData(document.getElementById("form-post"));
+    formData.delete("image-input");
+    formData.append("image-compressed", data);
+
+    for (const pair of formData.entries()) {
+      console.log(pair[0] + " => " + pair[1]);
+    }
+  });
+</script>
